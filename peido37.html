@@ -1,0 +1,1335 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <title>Jogo de Luta - Com Nomes, Cores e Bloqueio</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #111;
+      color: white;
+      font-family: sans-serif;
+      overflow: hidden;
+    }
+    #colorSelect {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      background: #222;
+      gap: 30px;
+    }
+    .player-config {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    .controls-panel {
+      background: rgba(0,0,0,0.25);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      color: #ddd;
+      text-align: left;
+      max-width: 260px;
+    }
+    .controls-panel h3 { margin: 0 0 6px 0; font-size: 14px; }
+    .color-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+    }
+    .color-swatch {
+      width: 40px;
+      height: 40px;
+      cursor: pointer;
+      border: 3px solid transparent;
+    }
+    .selected {
+      border-color: white;
+    }
+    /* Character selection cards (placeholder) */
+    .character-card {
+      width: 92px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(180deg,#2b2b2b,#202020);
+      border: 2px solid rgba(255,255,255,0.04);
+      border-radius: 8px;
+      cursor: pointer;
+      color: #ddd;
+      font-weight: 700;
+      text-transform: capitalize;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.6);
+    }
+    .character-card:hover { transform: translateY(-2px); }
+    .character-card.selected { border-color: white; box-shadow: 0 4px 14px rgba(255,255,255,0.06); }
+    #startBtn {
+      padding: 10px 20px;
+      font-size: 18px;
+      background: green;
+      color: white;
+      border: none;
+      cursor: pointer;
+      display: none;
+    }
+    #game {
+      display: none;
+      width: 1200px;
+      height: 600px;
+      margin: 40px auto;
+      background: #333;
+      position: relative;
+      border: 5px solid #555;
+      overflow: hidden;
+    }
+    .fighter {
+      width: 50px;
+      height: 100px;
+      position: absolute;
+      bottom: 0;
+      transition: filter 0.3s, height 0.2s;
+    }
+    .fighter.crouching {
+      height: 50px;
+    }
+    .health-bar {
+      position: absolute;
+      top: 10px;
+      width: 300px;
+      height: 20px;
+      background: #555;
+    }
+    #health1, #health2 {
+      height: 100%;
+      background: green;
+      width: 100%;
+    }
+    #bar1 { left: 10px; }
+    #bar2 { right: 10px; }
+    .cooldown {
+      position: absolute;
+      top: 40px;
+      font-size: 14px;
+      font-weight: bold;
+    }
+    #cooldown1 { left: 10px; color: yellow; }
+    #cooldown2 { right: 10px; color: cyan; }
+    
+    /* Posicionamento específico para soco e chute */
+    #punch1 { left: 10px; top: 60px; color: orange; }
+    #kick1 { left: 10px; top: 80px; color: red; }
+    #punch2 { right: 10px; top: 60px; color: orange; }
+    #kick2 { right: 10px; top: 80px; color: red; }
+    
+    .projectile {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      position: absolute;
+      pointer-events: none;
+      will-change: transform, opacity, left, bottom;
+      transition: transform 0.08s linear, opacity 0.2s linear;
+      box-shadow: 0 0 6px rgba(255,255,255,0.2);
+    }
+    .p1-bullet { background: yellow; }
+    .p2-bullet { background: cyan; }
+
+    /* visual effect when a bullet hits or is reflected */
+    .hit-effect {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      animation: hitPop 400ms ease-out forwards;
+      box-shadow: 0 0 12px rgba(255,255,255,0.6);
+      opacity: 0.95;
+    }
+
+    @keyframes hitPop {
+      0% { transform: translate(-50%, -50%) scale(0.3); opacity: 1; }
+      70% { transform: translate(-50%, -50%) scale(1.4); opacity: 0.6; }
+      100% { transform: translate(-50%, -50%) scale(1.8); opacity: 0; }
+    }
+
+    /* subtle trail using box-shadow layers for the two bullet types */
+    .p1-bullet { box-shadow: 0 0 8px rgba(255,200,0,0.9), 0 0 18px rgba(255,150,0,0.5); }
+    .p2-bullet { box-shadow: 0 0 8px rgba(0,200,255,0.9), 0 0 18px rgba(0,150,255,0.5); }
+    .player-name {
+      position: absolute;
+      top: -20px;
+      font-size: 16px;
+      font-weight: bold;
+      width: 300px;
+      text-align: center;
+      color: white;
+    }
+    #name1 { left: 10px; }
+    #name2 { right: 10px; }
+    .super-badge {
+      font-size: 12px;
+      color: gold;
+      margin-left: 6px;
+      vertical-align: super;
+    }
+
+    /* BLOQUEIO + STAMINA */
+    .stamina-bar {
+      position: absolute;
+      top: 35px;
+      width: 300px;
+      height: 10px;
+      background: #222;
+    }
+    #stamina1, #stamina2 {
+      height: 100%;
+    }
+    #stamina1 { background: limegreen; width: 100%; }
+    #stamina2 { background: deepskyblue; width: 100%; }
+
+    #shield1, #shield2 {
+      position: absolute;
+      font-size: 30px;
+      display: none;
+    }
+    #shield1 { left: 120px; top: 120px; }
+    #shield2 { right: 120px; top: 120px; }
+    /* Especial (placeholder) */
+    .special-container {
+      position: absolute;
+      width: 56px;
+      height: 56px;
+      border: 2px dashed rgba(255,255,255,0.12);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.25));
+      box-shadow: 0 0 0 0 rgba(255,255,255,0.03) inset;
+      transition: box-shadow 220ms, transform 220ms;
+    }
+    .special-container.ready {
+      border-color: gold;
+      box-shadow: 0 0 12px rgba(255,200,50,0.35), 0 0 0 3px rgba(255,200,50,0.06) inset;
+      transform: scale(1.04);
+    }
+    .special-fill {
+      position: absolute;
+      bottom: 4px;
+      left: 4px;
+      right: 4px;
+      height: 8px;
+      background: rgba(0,0,0,0.35);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .special-fill > .fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #ffd86b, #ff8a00);
+      transition: width 120ms linear;
+    }
+    .special-label {
+      position: absolute;
+      top: 6px;
+      font-size: 11px;
+      color: #ddd;
+      text-align: center;
+      width: 100%;
+      pointer-events: none;
+    }
+    
+    /* Efeito de dano */
+    .damage-effect {
+      animation: flash 0.3s;
+    }
+    
+    @keyframes flash {
+      0% { filter: brightness(2); }re
+      100% { filter: brightness(1); }
+    }
+    
+    /* Instruções */
+    #instructions {
+      position: absolute;
+      bottom: 10px;
+      width: 100%;
+      text-align: center;
+      font-size: 14px;
+      color: #aaa;
+    }
+
+    /* Contador de início */
+    #countdown {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 120px;
+      font-weight: 800;
+      color: white;
+      background: rgba(0,0,0,0.6);
+      z-index: 999;
+      pointer-events: none;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Tela de seleção -->
+  <div id="colorSelect">
+    <div class="player-config">
+      <h2>Jogador 1</h2>
+      <input type="text" id="inputName1" placeholder="Nome do Jogador 1">
+      <div class="color-options" id="colors1"></div>
+      <div class="controls-panel" id="controls1">
+        <h3>Controles Jogador 1</h3>
+        <div>R: Dash</div>
+        <div>A / D: Mover</div>
+        <div>W: Soco</div>
+        <div>E: Chute</div>
+        <div>C: Uppercut</div>
+        <div>S: Atirar</div>
+        <div>X: Agachar+Atacar</div>
+        <div>Espaço: Pular</div>
+        <div>Q: Bloquear</div>
+        <div>F: Parry</div>
+      </div>
+    </div>
+    <div class="player-config">
+      <h2>Jogador 2</h2>
+      <input type="text" id="inputName2" placeholder="Nome do Jogador 2">
+      <div class="color-options" id="colors2"></div>
+      <div class="controls-panel" id="controls2">
+        <h3>Controles Jogador 2</h3>
+        <div>9 (NumPad): Dash</div>
+        <div>4 / 6 (NumPad): Mover</div>
+        <div>Enter: Soco</div>
+        <div>2 (NumPad): Chute</div>
+        <div>+ (NumPad): Uppercut</div>
+        <div>. (ponto): Atirar</div>
+        <div>5 (NumPad): Agachar+Atacar</div>
+        <div>8 (NumPad): Pular</div>
+        <div>7 (NumPad): Bloquear</div>
+        <div>1 (NumPad): Parry</div>
+      </div>
+    </div>
+    <label style="color:#ccc; font-size:13px; margin-top:6px;"><input type="checkbox" id="showTips" checked> Mostrar dicas avançadas</label>
+    <button id="startBtn">Iniciar Jogo</button>
+  </div>
+
+  <!-- Jogo -->
+  <div id="game">
+    <div id="countdown"></div>
+    <div class="health-bar" id="bar1">
+      <div id="health1"></div>
+      <div class="player-name" id="name1"></div>
+    </div>
+    <div class="health-bar" id="bar2">
+      <div id="health2"></div>
+      <div class="player-name" id="name2"></div>
+    </div>
+
+    <!-- STAMINA -->
+    <div class="stamina-bar" style="left: 10px;">
+      <div id="stamina1"></div>
+    </div>
+    <div class="stamina-bar" style="right: 10px;">
+      <div id="stamina2"></div>
+    </div>
+
+    <!-- Especial placeholders -->
+    <div id="special1" class="special-container" style="left:10px; bottom: 10px;">
+      <div class="special-label">Especial</div>
+      <div class="special-fill"><div id="specialFill1" class="fill"></div></div>
+    </div>
+    <div id="special2" class="special-container" style="right:10px; bottom: 10px;">
+      <div class="special-label">Especial</div>
+      <div class="special-fill"><div id="specialFill2" class="fill"></div></div>
+    </div>
+
+    <div class="cooldown" id="cooldown1">Tiro: Pronto</div>
+    <div class="cooldown" id="cooldown2">Tiro: Pronto</div>
+    <div class="cooldown" id="punch1">Soco: Pronto</div>
+    <div class="cooldown" id="kick1">Chute: Pronto</div>
+    <div class="cooldown" id="uppercut1" style="left:10px; top:100px; color:orange">Uppercut: Pronto</div>
+    <div class="cooldown" id="punch2">Soco: Pronto</div>
+    <div class="cooldown" id="kick2">Chute: Pronto</div>
+    <div class="cooldown" id="uppercut2" style="right:10px; top:100px; color:orange">Uppercut: Pronto</div>
+    <div class="cooldown" id="crouch1" style="left:10px; top:120px; color:purple">Agachado: Pronto</div>
+    <div class="cooldown" id="crouch2" style="right:10px; top:120px; color:purple">Agachado: Pronto</div>
+    <div class="cooldown" id="parry1" style="left:10px; top:70px; color:lightgreen">Parry: Pronto</div>
+    <div class="cooldown" id="parry2" style="right:10px; top:70px; color:lightgreen">Parry: Pronto</div>
+
+    <div class="fighter" id="player1"></div>
+    <div class="fighter" id="player2"></div>
+
+    <!-- ESCUDO VISUAL -->
+    <div id="shield1">🛡️</div>
+    <div id="shield2">🛡️</div>
+    
+    <!-- Instruções -->
+    <div id="instructions">
+      Jogador 1: A/D=Mover, W=Soco, E=Chute, C=Uppercut, X=Agachar+Atacar, S=Atirar, Espaço=Pular, Q=Bloquear | 
+      Jogador 2: 4/6=Mover, Enter=Soco, 2=Chute, +=Uppercut, .=Atirar, 5=Agachar+Atacar, 8=Pular, 7=Bloquear, 1=Parry (todos pelo NumPad)
+      <br>
+      Parry: Jogador 1 = F (janela curta) , Jogador 2 = 1 (NumPad)
+    </div>
+  </div>
+
+  <script>
+    const CHARACTERS = ['savio','wendel','mozean','tatianna','alcides'];
+    const CHARACTER_COLORS = {
+      savio: '#1abc9c',
+      wendel: '#3498db',
+      mozean: '#9b59b6',
+      tatianna: '#e74c3c',
+      alcides: '#f1c40f'
+    };
+    let selectedCharacter1 = null, selectedCharacter2 = null;
+    const inputName1 = document.getElementById('inputName1');
+    const inputName2 = document.getElementById('inputName2');
+    const colors1 = document.getElementById('colors1');
+    const colors2 = document.getElementById('colors2');
+    const startBtn = document.getElementById('startBtn');
+
+    // SPRITE FRAMES: fill these arrays with the frames for each action per color.
+    // You can use strings (image URLs) or objects describing frames ({x,y,w,h}) depending on
+    // how you plan to draw frames. Example:
+    // SPRITE_FRAMES.red.punch = ['images/red/punch1.png','images/red/punch2.png'];
+    const SPRITE_FRAMES = {
+    // Example: put your crouch image file at 'img/crouch_example.png' (or any path you choose)
+    // then reference it below. Prefer PNG with transparent background so the sprite overlays
+    // the arena correctly.
+    red:    { idle: ['img/base.png'], walk: ['img/pulo.png'], run: [], jump: [], punch: [], kick: [], uppercut: [], shoot: [], crouch: ['img/rasteira.png'], dash: [], special: [] },
+      blue:   { idle: [], walk: [], run: [], jump: [], punch: [], kick: [], uppercut: [], shoot: [], crouch: [], dash: [], special: [] },
+      green:  { idle: [], walk: [], run: [], jump: [], punch: [], kick: [], uppercut: [], shoot: [], crouch: [], dash: [], special: [] },
+      orange: { idle: [], walk: [], run: [], jump: [], punch: [], kick: [], uppercut: [], shoot: [], crouch: [], dash: [], special: [] },
+      purple: { idle: [], walk: [], run: [], jump: [], punch: [], kick: [], uppercut: [], shoot: [], crouch: [], dash: [], special: [] },
+      pink:   { idle: [], walk: [], run: [], jump: [], punch: [], kick: [], uppercut: [], shoot: [], crouch: [], dash: [], special: [] },
+      cyan:   { idle: [], walk: [], run: [], jump: [], punch: [], kick: [], uppercut: [], shoot: [], crouch: [], dash: [], special: [] },
+      yellow: { idle: [], walk: [], run: [], jump: [], punch: [], kick: [], uppercut: [], shoot: [], crouch: [], dash: [], special: [] },
+      white:  { idle: [], walk: [], run: [], jump: [], punch: [], kick: [], uppercut: [], shoot: [], crouch: [], dash: [], special: [] },
+      gray:   { idle: [], walk: [], run: [], jump: [], punch: [], kick: [], uppercut: [], shoot: [], crouch: [], dash: [], special: [] }
+    };
+
+    // chosenFrames1/2 will hold the frame sets for the selected color and will be copied
+    // into the player objects when the game starts. Fill SPRITE_FRAMES above with your
+    // images/frames for each action.
+    let chosenFrames1 = null, chosenFrames2 = null;
+
+    const COLORS = ['red', 'blue', 'green', 'orange', 'purple', 'pink', 'cyan', 'yellow', 'white', 'gray'];
+    let selectedColor1 = null, selectedColor2 = null;
+    COLORS.forEach(color => {
+      const s1 = document.createElement('div');
+      s1.className = 'color-swatch';
+      s1.style.backgroundColor = color;
+      s1.onclick = () => {
+        selectedColor1 = color;
+        document.querySelectorAll('#colors1 .color-swatch').forEach(el => el.classList.remove('selected'));
+        s1.classList.add('selected');
+        checkStart();
+      };
+      colors1.appendChild(s1);
+
+      const s2 = document.createElement('div');
+      s2.className = 'color-swatch';
+      s2.style.backgroundColor = color;
+      s2.onclick = () => {
+        selectedColor2 = color;
+        document.querySelectorAll('#colors2 .color-swatch').forEach(el => el.classList.remove('selected'));
+        s2.classList.add('selected');
+        checkStart();
+      };
+      colors2.appendChild(s2);
+    });
+
+    function checkStart() {
+      if (selectedColor1 && selectedColor2 && inputName1.value.trim() && inputName2.value.trim()) {
+        startBtn.style.display = 'block';
+      } else {
+        startBtn.style.display = 'none';
+      }
+    }
+
+    inputName1.addEventListener('input', checkStart);
+    inputName2.addEventListener('input', checkStart);
+
+    // Controls toggle
+    const showTipsCheckbox = document.getElementById('showTips');
+    const controls1 = document.getElementById('controls1');
+    const controls2 = document.getElementById('controls2');
+    function updateControlsVisibility() {
+      const show = showTipsCheckbox.checked;
+      controls1.style.display = show ? 'block' : 'none';
+      controls2.style.display = show ? 'block' : 'none';
+    }
+    showTipsCheckbox.addEventListener('change', updateControlsVisibility);
+    updateControlsVisibility();
+
+    startBtn.addEventListener('click', () => {
+      document.getElementById('colorSelect').style.display = 'none';
+      document.getElementById('game').style.display = 'block';
+      const instr = document.getElementById('instructions');
+      if (instr) instr.style.display = 'none';
+
+  const p1isA01 = inputName1.value.toLowerCase() === 'a01';
+  const p2isA01 = inputName2.value.toLowerCase() === 'a01';
+  document.getElementById('player1').style.backgroundColor = p1isA01 ? 'black' : selectedColor1;
+  document.getElementById('player2').style.backgroundColor = p2isA01 ? 'black' : selectedColor2;
+  window.__p1IsA01 = p1isA01;
+  window.__p2IsA01 = p2isA01;
+  // Pick frames for chosen colors so they can be applied to player objects
+  chosenFrames1 = SPRITE_FRAMES[selectedColor1] || null;
+  chosenFrames2 = SPRITE_FRAMES[selectedColor2] || null;
+  // Restaurar: não mostrar nome do personagem no sprite
+  document.getElementById('player1').textContent = '';
+  document.getElementById('player2').textContent = '';
+
+      document.getElementById('name1').textContent = inputName1.value;
+      document.getElementById('name2').textContent = inputName2.value;
+
+      // Mostrar contador antes de iniciar
+      const countdownEl = document.getElementById('countdown');
+      let count = 3;
+      countdownEl.style.display = 'flex';
+      countdownEl.textContent = count;
+      const iv = setInterval(() => {
+        count--;
+        if (count > 0) {
+          countdownEl.textContent = count;
+        } else {
+          clearInterval(iv);
+          countdownEl.textContent = 'LUTA!';
+          setTimeout(() => {
+            countdownEl.style.display = 'none';
+            startGame();
+          }, 600);
+        }
+      }, 1000);
+    });
+
+    function startGame() {
+      const game = document.getElementById('game');
+      const player1 = document.getElementById('player1');
+      const player2 = document.getElementById('player2');
+      const health1 = document.getElementById('health1');
+      const health2 = document.getElementById('health2');
+
+      const cooldown1 = document.getElementById('cooldown1');
+      const cooldown2 = document.getElementById('cooldown2');
+      const punch1 = document.getElementById('punch1');
+      const punch2 = document.getElementById('punch2');
+      const kick1 = document.getElementById('kick1');
+      const kick2 = document.getElementById('kick2');
+  const special1 = document.getElementById('special1');
+  const special2 = document.getElementById('special2');
+  const specialFill1 = document.getElementById('specialFill1');
+  const specialFill2 = document.getElementById('specialFill2');
+
+      const staminaBar1 = document.getElementById('stamina1');
+      const staminaBar2 = document.getElementById('stamina2');
+      const shield1 = document.getElementById('shield1');
+      const shield2 = document.getElementById('shield2');
+
+  const GROUND_Y = 0;
+  const GAME_WIDTH = 1200;
+  const GAME_HEIGHT = 600;
+      const JUMP_VELOCITY = 15;
+      const GRAVITY = 0.8;
+      const SPEED = 10;
+
+      const BULLET_COOLDOWN = 1000;
+  const PUNCH_COOLDOWN = 800;
+  const KICK_COOLDOWN = 600;
+  const UPPERCUT_COOLDOWN = 1200;
+  const UPPERCUT_FORCE = 12;  // Força do uppercut para cima
+  const PARRY_WINDOW = 300; // ms window during which parry succeeds
+  const PARRY_COOLDOWN = 1000; // ms between parries
+  const PARRY_STAMINA_COST = 20;
+  const STAMINA_ON_HIT = 12; // stamina lost when taking damage
+  const STUN_DURATION = 500; // ms stunned when stamina hits 0
+  const DASH_SPEED = 12; // reduzido para diminuir velocidade do dash
+  const DASH_DURATION = 100;
+  const DASH_COOLDOWN = 3000;
+  const CROUCH_ATTACK_COOLDOWN = 3000; // Cooldown maior que outros ataques
+  const CROUCH_STUN_DURATION = 1000; // Duração do stun do ataque agachado
+
+  // Especial
+  const SPECIAL_MAX = 100;
+  const SPECIAL_GAIN_HIT = 20; // ganha ao acertar um hit
+  const SPECIAL_CHARGE_RATE = 0.03; // ganho passivo por frame
+  const SPECIAL_COST = 100;
+  const SPECIAL_COOLDOWN = 3000; // ms
+
+    let bullets = [];
+
+      // Frame preload cache to avoid flicker when switching to a new animation
+      const FRAME_CACHE = new Set();
+      function preloadFrames(framesObj) {
+        try {
+          if (!framesObj) return;
+          Object.keys(framesObj).forEach(action => {
+            const arr = framesObj[action] || [];
+            arr.forEach(url => {
+              if (!url) return;
+              if (FRAME_CACHE.has(url)) return;
+              const img = new Image();
+              img.onload = () => FRAME_CACHE.add(url);
+              img.onerror = () => FRAME_CACHE.add(url); // avoid blocking on error
+              img.src = url;
+            });
+          });
+        } catch (e) { /* ignore */ }
+      }
+
+  // strength multipliers: default 1, if name was a01 then 2
+  const p1Mult = window.__p1IsA01 ? 2 : 1;
+  const p2Mult = window.__p2IsA01 ? 2 : 1;
+
+  // posicionar jogadores mais afastados para a arena maior
+  let p1 = { 
+    x: 120, 
+    y: 0, 
+    vx: 0, // Velocidade horizontal
+    vy: 0, 
+    ax: 0, // Aceleração horizontal
+    maxSpeed: 4, // Velocidade máxima horizontal reduzida
+    acceleration: 1.0, // Taxa de aceleração reduzida
+    friction: 0.80, // Atrito aumentado para menos deslizamento
+    jumping: false, 
+    health: 100, 
+    lastShot: 0, 
+    lastPunch: 0, 
+    lastKick: 0, 
+    lastUppercut: 0,
+  lastCrouchAttack: 0,
+  special: 0,
+  lastSpecial: 0,
+  specialCooldownUntil: 0,
+  // frames assigned from SPRITE_FRAMES when game starts
+  frames: chosenFrames1 || null,
+  color: selectedColor1,
+  // animation state
+  currentAnim: 'idle',
+  animFrame: 0,
+  animLastTick: 0,
+  animInterval: 120, // ms between frames
+    blocking: false, 
+    parrying: false, 
+    lastParry: 0, 
+    stunned: false, 
+    stunnedUntil: 0, 
+    strengthMultiplier: p1Mult,
+    lastDash: 0,
+    isDashing: false,
+  facing: 1, // 1 = direita, -1 = esquerda
+    isCrouching: false,
+    movingLeft: false,
+    movingRight: false
+};
+
+let p2 = { 
+    x: GAME_WIDTH - 170, 
+    y: 0, 
+    vx: 0, // Velocidade horizontal
+    vy: 0, 
+    ax: 0, // Aceleração horizontal
+  maxSpeed: 4, // Velocidade máxima horizontal reduzida
+    acceleration: 1.0, // Taxa de aceleração reduzida
+    friction: 0.80, // Atrito aumentado para menos deslizamento
+    jumping: false, 
+    health: 100, 
+    lastShot: 0, 
+    lastPunch: 0, 
+    lastKick: 0, 
+    lastUppercut: 0,
+  lastCrouchAttack: 0,
+  special: 0,
+  lastSpecial: 0,
+  specialCooldownUntil: 0,
+  // frames assigned from SPRITE_FRAMES when game starts
+  frames: chosenFrames2 || null,
+  color: selectedColor2,
+  // animation state
+  currentAnim: 'idle',
+  animFrame: 0,
+  animLastTick: 0,
+  animInterval: 120, // ms between frames
+    blocking: false, 
+    parrying: false, 
+    lastParry: 0, 
+    stunned: false, 
+    stunnedUntil: 0, 
+    strengthMultiplier: p2Mult,
+    lastDash: 0,
+    isDashing: false,
+  facing: -1, // P2 inicialmente olhando para esquerda
+    isCrouching: false,
+    movingLeft: false,
+    movingRight: false
+};
+
+  // Preload frames for both players so animations show immediately when triggered
+  try { preloadFrames(p1.frames); preloadFrames(p2.frames); } catch (e) {}
+
+      let stamina1 = 100;
+      let stamina2 = 100;
+      const MAX_STAMINA = 100;
+      const STAMINA_DECREASE = 0.5;
+      const STAMINA_RECOVERY = 0.25;
+
+      document.addEventListener('keydown', (e) => {
+        const now = Date.now();
+
+  // Jogador 1
+  if (e.key === 'a') { p1.movingLeft = true; p1.facing = -1; }
+  if (e.key === 'd') { p1.movingRight = true; p1.facing = 1; }
+        if (e.key === 'q' && stamina1 > 10) p1.blocking = true;
+        if (e.key === 'w' && now - p1.lastPunch > PUNCH_COOLDOWN) {
+          if (!p1.blocking) attack(p1, p2, 10);
+          p1.lastPunch = now;
+        }
+        if (e.key === 'e' && now - p1.lastKick > KICK_COOLDOWN) {
+          if (!p1.blocking) attack(p1, p2, 5);
+          p1.lastKick = now;
+        }
+        if (e.key === 's' && now - p1.lastShot > BULLET_COOLDOWN) {
+          shoot(p1, 1);
+          p1.lastShot = now;
+        }
+        // Uppercut Jogador 1 = C
+        if ((e.key === 'c' || e.key === 'C') && now - p1.lastUppercut > UPPERCUT_COOLDOWN) {
+          if (!p1.blocking) uppercut(p1, p2);
+          p1.lastUppercut = now;
+        }
+        // PARRY Jogador 1 = F
+        if (e.key === 'f' || e.key === 'F') {
+          tryParry(p1, 1);
+        }
+        // Ataque agachado para Jogador 1
+        if ((e.key === 'x' || e.key === 'X') && now - p1.lastCrouchAttack > CROUCH_ATTACK_COOLDOWN) {
+          if (!p1.blocking && !p1.stunned && !p1.isCrouching) {
+            p1.isCrouching = true;
+            p1.lastCrouchAttack = now;
+            player1.classList.add('crouching');
+            crouchAttack(p1, p2);
+          }
+        }
+        // Especial Jogador 1 = Z
+        if ((e.key === 'z' || e.key === 'Z')) {
+          if (p1.special >= SPECIAL_COST && Date.now() >= (p1.specialCooldownUntil || 0) && !p1.stunned) {
+            activateSpecial(p1, p2, 1);
+            p1.special = 0;
+            p1.lastSpecial = Date.now();
+            p1.specialCooldownUntil = Date.now() + SPECIAL_COOLDOWN;
+          }
+        }
+        if (e.code === 'Space' && !p1.jumping) {
+          p1.vy = JUMP_VELOCITY;
+          p1.jumping = true;
+        }
+
+  // Jogador 2 controles personalizados
+  // Andar esquerda = NumPad 4
+  if (e.code === 'Numpad4') { p2.movingLeft = true; p2.facing = -1; }
+  // Andar direita = NumPad 6
+  if (e.code === 'Numpad6') { p2.movingRight = true; p2.facing = 1; }
+  // Escudo = NumPad 7
+  if (e.code === 'Numpad7' && stamina2 > 10) p2.blocking = true;
+  // Dash = NumPad 9
+  if (e.code === 'Numpad9' && !p2.isDashing && Date.now() - p2.lastDash > DASH_COOLDOWN) {
+    p2.isDashing = true;
+    p2.lastDash = Date.now();
+    p2.vx = p2.facing * DASH_SPEED;
+    setTimeout(() => {
+      p2.isDashing = false;
+      p2.vx *= 0.4;
+    }, DASH_DURATION);
+  }
+  // Uppercut = Numpad Add (+)
+  if (e.code === 'NumpadAdd' && now - p2.lastUppercut > UPPERCUT_COOLDOWN) {
+    if (!p2.blocking) uppercut(p2, p1);
+    p2.lastUppercut = now;
+  }
+  // Atirar = ponto (.)
+  if (e.key === '.' && now - p2.lastShot > BULLET_COOLDOWN) {
+    shoot(p2, 2);
+    p2.lastShot = now;
+  }
+  // Pular = NumPad 8
+  if (e.code === 'Numpad8' && !p2.jumping) {
+    p2.vy = JUMP_VELOCITY;
+    p2.jumping = true;
+  }
+  // Soco = Enter
+  if (e.code === 'Enter' && now - p2.lastPunch > PUNCH_COOLDOWN) {
+    if (!p2.blocking) attack(p2, p1, 10);
+    p2.lastPunch = now;
+  }
+  // Ataque baixo = NumPad 5
+  if (e.code === 'Numpad5' && now - p2.lastCrouchAttack > CROUCH_ATTACK_COOLDOWN) {
+    if (!p2.blocking && !p2.stunned && !p2.isCrouching) {
+      p2.isCrouching = true;
+      p2.lastCrouchAttack = now;
+      player2.classList.add('crouching');
+      crouchAttack(p2, p1);
+    }
+  }
+  // Especial Jogador 2 = L (letra L)
+  if ((e.key === 'l' || e.key === 'L')) {
+    if (p2.special >= SPECIAL_COST && Date.now() >= (p2.specialCooldownUntil || 0) && !p2.stunned) {
+      activateSpecial(p2, p1, 2);
+      p2.special = 0;
+      p2.lastSpecial = Date.now();
+      p2.specialCooldownUntil = Date.now() + SPECIAL_COOLDOWN;
+    }
+  }
+  // Parry = NumPad 1
+  if (e.code === 'Numpad1') {
+    tryParry(p2, 2);
+  }
+  // Chute = NumPad 2
+  if (e.code === 'Numpad2' && now - p2.lastKick > KICK_COOLDOWN) {
+    if (!p2.blocking) attack(p2, p1, 5);
+    p2.lastKick = now;
+  }
+      });
+
+      document.addEventListener('keyup', (e) => {
+        // Jogador 1
+        if (e.key === 'a') p1.movingLeft = false;
+        if (e.key === 'd') p1.movingRight = false;
+        if (e.key === 'q') p1.blocking = false;
+
+        // Jogador 2
+        if (e.code === 'Numpad4') p2.movingLeft = false;
+        if (e.code === 'Numpad6') p2.movingRight = false;
+        if (e.code === 'Numpad7') p2.blocking = false;
+      });
+
+      function applyDamage(target, amount) {
+        // reduce stamina first
+        if (target === p1) {
+          stamina1 = Math.max(0, stamina1 - STAMINA_ON_HIT);
+        } else {
+          stamina2 = Math.max(0, stamina2 - STAMINA_ON_HIT);
+        }
+
+        // if stamina depleted, apply stun
+        if ((target === p1 && stamina1 <= 0) || (target === p2 && stamina2 <= 0)) {
+          target.stunned = true;
+          target.stunnedUntil = Date.now() + STUN_DURATION;
+        }
+
+        target.health -= amount;
+        if (target.health < 0) target.health = 0;
+        // visual feedback handled by caller
+        update();
+        checkWin();
+      }
+
+      function attack(attacker, target, damage) {
+        // trigger attack animation based on damage (simple mapping: high damage = punch)
+        try { setAnim(attacker, damage > 7 ? 'punch' : 'kick'); } catch (e) {}
+        const scaledDamage = Math.floor(damage * (attacker.strengthMultiplier || 1));
+        if (Math.abs(attacker.x - target.x) < 60 && Math.abs(attacker.y - target.y) < 50) {
+          if (target.blocking) return; // Bloqueando = sem dano
+          if (target.parrying) {
+              // Parry successful: attacker gets small damage and knockback (scaled)
+              applyDamage(attacker, Math.floor(scaledDamage / 2));
+              // knockback attacker slightly backward (usar facing para determinar direção)
+              const atkFacing = attacker.facing || (attacker === p1 ? 1 : -1);
+              attacker.x += -atkFacing * 20;
+            // show damage effect on attacker
+            const attackerEl = attacker === p1 ? player1 : player2;
+            attackerEl.classList.add('damage-effect');
+            setTimeout(() => attackerEl.classList.remove('damage-effect'), 300);
+            return;
+          }
+          
+          // Aplicar efeito visual de dano
+          const targetElement = attacker === p1 ? player2 : player1;
+          targetElement.classList.add('damage-effect');
+          setTimeout(() => {
+            targetElement.classList.remove('damage-effect');
+          }, 300);
+          
+          applyDamage(target, scaledDamage);
+          // grant special to attacker on successful hit
+          attacker.special = Math.max(0, Math.min(SPECIAL_MAX, (attacker.special || 0) + SPECIAL_GAIN_HIT));
+          // knockback target away from attacker - stronger for kicks
+          const knockbackAmount = damage === 5 ? 65 : 20; // 40 for kicks (damage 5), 20 for punches (damage 10)
+          const atkFace = attacker.facing || (attacker === p1 ? 1 : -1);
+          target.x += atkFace * knockbackAmount;
+        }
+      }
+
+      function shoot(player, who) {
+        // animation for shooting
+        try { const shooter = who === 1 ? p1 : p2; setAnim(shooter, 'shoot'); } catch (e) {}
+        const bullet = document.createElement('div');
+        bullet.classList.add('projectile');
+        bullet.classList.add(who === 1 ? 'p1-bullet' : 'p2-bullet');
+        const startX = player.x + (who === 1 ? 50 : 0);
+        const startY = player.y + 60;
+        bullet.style.left = startX + 'px';
+        bullet.style.bottom = startY + 'px';
+        // initial transform for smoother motion
+        bullet.style.transform = `translateZ(0)`;
+        game.appendChild(bullet);
+
+  const shooter = who === 1 ? p1 : p2;
+  const damage = Math.floor(5 * (shooter.strengthMultiplier || 1));
+  const dir = shooter.facing || (who === 1 ? 1 : -1);
+  bullets.push({ element: bullet, x: startX, y: startY, w: 12, h: 12, direction: dir, owner: who, reflected: false, speed: 6, damage });
+      }
+
+      function update() {
+        // Atualizar movimento do jogador 1
+        if (p1.movingLeft) p1.ax = -p1.acceleration;
+        else if (p1.movingRight) p1.ax = p1.acceleration;
+        else p1.ax = 0;
+
+        // Atualizar movimento do jogador 2
+        if (p2.movingLeft) p2.ax = -p2.acceleration;
+        else if (p2.movingRight) p2.ax = p2.acceleration;
+        else p2.ax = 0;
+
+        // Aplicar aceleração e atrito para jogador 1
+        p1.vx += p1.ax;
+        p1.vx *= p1.friction;
+        if (Math.abs(p1.vx) < 0.1) p1.vx = 0;
+        p1.vx = Math.max(-p1.maxSpeed, Math.min(p1.maxSpeed, p1.vx));
+
+        // Aplicar aceleração e atrito para jogador 2
+        p2.vx += p2.ax;
+        p2.vx *= p2.friction;
+        if (Math.abs(p2.vx) < 0.1) p2.vx = 0;
+        p2.vx = Math.max(-p2.maxSpeed, Math.min(p2.maxSpeed, p2.vx));
+
+    // Aplica o dash (sobrepõe a velocidade normal) - usar facing se necessário
+    if (p1.isDashing) {
+      p1.vx = p1.facing * DASH_SPEED;
+    }
+    if (p2.isDashing) {
+      p2.vx = p2.facing * DASH_SPEED;
+    }
+
+        // Atualizar posições
+        p1.x += p1.vx;
+        p2.x += p2.vx;
+
+        // Limitar jogadores dentro da tela usando largura da arena
+        const PLAYER_MAX_X = GAME_WIDTH - 50;
+        p1.x = Math.max(0, Math.min(PLAYER_MAX_X, p1.x));
+        p2.x = Math.max(0, Math.min(PLAYER_MAX_X, p2.x));
+        
+        player1.style.left = p1.x + 'px';
+        player1.style.bottom = p1.y + 'px';
+        player2.style.left = p2.x + 'px';
+        player2.style.bottom = p2.y + 'px';
+        health1.style.width = p1.health + '%';
+        health2.style.width = p2.health + '%';
+  // Carregar especial passivamente
+  p1.special = Math.max(0, Math.min(SPECIAL_MAX, (p1.special || 0) + SPECIAL_CHARGE_RATE));
+  p2.special = Math.max(0, Math.min(SPECIAL_MAX, (p2.special || 0) + SPECIAL_CHARGE_RATE));
+  // Atualizar UI do special
+  if (specialFill1) specialFill1.style.width = ((p1.special / SPECIAL_MAX) * 100) + '%';
+  if (specialFill2) specialFill2.style.width = ((p2.special / SPECIAL_MAX) * 100) + '%';
+  if (special1) special1.classList.toggle('ready', p1.special >= SPECIAL_MAX && Date.now() >= (p1.specialCooldownUntil || 0));
+  if (special2) special2.classList.toggle('ready', p2.special >= SPECIAL_MAX && Date.now() >= (p2.specialCooldownUntil || 0));
+  // advance animations for both players (will silently do nothing if frames not configured)
+  try { advanceAnim(p1, player1); } catch (e) {}
+  try { advanceAnim(p2, player2); } catch (e) {}
+      }
+
+      function checkWin() {
+        if (p1.health <= 0) { 
+          alert(inputName2.value + ' venceu!'); 
+          location.reload(); 
+        }
+        if (p2.health <= 0) { 
+          alert(inputName1.value + ' venceu!'); 
+          location.reload(); 
+        }
+      }
+
+      function updateCooldowns() {
+        const now = Date.now();
+        cooldown1.textContent = `Tiro: ${Math.max(0, (BULLET_COOLDOWN - (now - p1.lastShot)) / 1000).toFixed(1)}s`;
+        cooldown2.textContent = `Tiro: ${Math.max(0, (BULLET_COOLDOWN - (now - p2.lastShot)) / 1000).toFixed(1)}s`;
+        punch1.textContent = `Soco: ${Math.max(0, (PUNCH_COOLDOWN - (now - p1.lastPunch)) / 1000).toFixed(1)}s`;
+        punch2.textContent = `Soco: ${Math.max(0, (PUNCH_COOLDOWN - (now - p2.lastPunch)) / 1000).toFixed(1)}s`;
+        kick1.textContent = `Chute: ${Math.max(0, (KICK_COOLDOWN - (now - p1.lastKick)) / 1000).toFixed(1)}s`;
+        kick2.textContent = `Chute: ${Math.max(0, (KICK_COOLDOWN - (now - p2.lastKick)) / 1000).toFixed(1)}s`;
+        parry1.textContent = `Parry: ${Math.max(0, (PARRY_COOLDOWN - (now - p1.lastParry)) / 1000).toFixed(1)}s`;
+        parry2.textContent = `Parry: ${Math.max(0, (PARRY_COOLDOWN - (now - p2.lastParry)) / 1000).toFixed(1)}s`;
+        uppercut1.textContent = `Uppercut: ${Math.max(0, (UPPERCUT_COOLDOWN - (now - p1.lastUppercut)) / 1000).toFixed(1)}s`;
+        uppercut2.textContent = `Uppercut: ${Math.max(0, (UPPERCUT_COOLDOWN - (now - p2.lastUppercut)) / 1000).toFixed(1)}s`;
+        crouch1.textContent = `Agachado: ${Math.max(0, (CROUCH_ATTACK_COOLDOWN - (now - p1.lastCrouchAttack)) / 1000).toFixed(1)}s`;
+        crouch2.textContent = `Agachado: ${Math.max(0, (CROUCH_ATTACK_COOLDOWN - (now - p2.lastCrouchAttack)) / 1000).toFixed(1)}s`;
+        // Special status text
+        if (typeof special1 !== 'undefined') special1.title = `Especial: ${Math.floor(p1.special)} / ${SPECIAL_MAX}`;
+        if (typeof special2 !== 'undefined') special2.title = `Especial: ${Math.floor(p2.special)} / ${SPECIAL_MAX}`;
+      }
+
+      function crouchAttack(attacker, target) {
+        try { setAnim(attacker, 'crouch'); } catch (e) {}
+        const now = Date.now();
+        const scaledDamage = Math.floor(8 * (attacker.strengthMultiplier || 1));
+        const attackerEl = attacker === p1 ? player1 : player2;
+        const targetElement = attacker === p1 ? player2 : player1;
+
+        // Verificar se está no range do ataque
+        if (Math.abs(attacker.x - target.x) < 70 && Math.abs(attacker.y - target.y) < 50) {
+          if (target.blocking) return; // Bloqueando = sem dano
+
+          if (target.parrying) {
+            // Parry successful: attacker gets damage and knockback
+            applyDamage(attacker, Math.floor(scaledDamage / 2));
+            const atkF = attacker.facing || (attacker === p1 ? 1 : -1);
+            attacker.x += -atkF * 30;
+            
+            // Efeito visual no atacante que foi defendido
+            attackerEl.classList.add('damage-effect');
+            setTimeout(() => attackerEl.classList.remove('damage-effect'), 300);
+            
+            // Limpar estado de agachamento do atacante
+            attacker.isCrouching = false;
+            attackerEl.classList.remove('crouching');
+            return;
+          }
+          
+          // Aplicar efeito visual de dano
+          targetElement.classList.add('damage-effect');
+          setTimeout(() => targetElement.classList.remove('damage-effect'), 300);
+          
+          // Aplicar dano
+          applyDamage(target, scaledDamage);
+          // grant special to attacker on hit
+          attacker.special = Math.max(0, Math.min(SPECIAL_MAX, (attacker.special || 0) + SPECIAL_GAIN_HIT));
+          
+          // Aplicar stun especial
+          target.stunned = true;
+          target.stunnedUntil = now + CROUCH_STUN_DURATION;
+          
+          // Efeito visual de stun
+          targetElement.style.filter = 'brightness(0.7) blur(2px)';
+          setTimeout(() => {
+            targetElement.style.filter = '';
+            // Garantir que o stun seja removido
+            if (now + CROUCH_STUN_DURATION <= Date.now()) {
+              target.stunned = false;
+            }
+          }, CROUCH_STUN_DURATION);
+          
+          // Knockback menor por ser agachado
+          const atkF2 = attacker.facing || (attacker === p1 ? 1 : -1);
+          target.x += atkF2 * 25;
+        }
+
+        // Sempre agendar a remoção do estado de agachamento
+        setTimeout(() => {
+          attacker.isCrouching = false;
+          attackerEl.classList.remove('crouching');
+        }, 500);
+      }
+
+      // Especial: efeito visual placeholder + dano e stun
+      function activateSpecial(attacker, target, who) {
+        try { setAnim(attacker, 'special'); } catch (e) {}
+        const now = Date.now();
+        const attackerEl = attacker === p1 ? player1 : player2;
+        const targetEl = attacker === p1 ? player2 : player1;
+        // efeito visual grande: quadro com borda dourada que cresce e some
+        const box = document.createElement('div');
+        box.style.position = 'absolute';
+        box.style.width = '120px';
+        box.style.height = '120px';
+        box.style.left = (attacker.x + 10) + 'px';
+        box.style.bottom = (attacker.y + 20) + 'px';
+        box.style.border = '3px solid rgba(255,200,50,0.9)';
+        box.style.background = 'linear-gradient(180deg, rgba(255,240,200,0.06), rgba(0,0,0,0.35))';
+        box.style.borderRadius = '8px';
+        box.style.boxShadow = '0 0 24px rgba(255,180,30,0.25)';
+        box.style.transform = 'scale(0.3)';
+        box.style.opacity = '0';
+        box.style.transition = 'transform 260ms ease-out, opacity 260ms ease-out';
+        game.appendChild(box);
+        requestAnimationFrame(() => {
+          box.style.opacity = '1';
+          box.style.transform = 'scale(1)';
+        });
+        setTimeout(() => {
+          box.style.opacity = '0';
+          box.style.transform = 'scale(1.2)';
+          setTimeout(() => box.remove(), 260);
+        }, 360);
+
+        // Aplicar efeito - dano forte + stun curto, somente se estiver no alcance
+        const SPECIAL_RANGE = 140; // pixels radius/approx horizontal reach
+        const dx = (attacker.x || 0) - (target.x || 0);
+        const dy = (attacker.y || 0) - (target.y || 0);
+        const distSq = dx*dx + dy*dy;
+        const inRange = distSq <= (SPECIAL_RANGE * SPECIAL_RANGE);
+        const scaled = Math.floor(25 * (attacker.strengthMultiplier || 1));
+        if (inRange && !target.blocking) {
+          applyDamage(target, scaled);
+          // aplicar stun
+          target.stunned = true;
+          target.stunnedUntil = now + 800;
+          // visual de stun
+          targetEl.style.filter = 'brightness(0.6) blur(2px)';
+          setTimeout(() => { targetEl.style.filter = ''; target.stunned = false; }, 800);
+          spawnHitEffect(target.x + 25, target.y + 50, 'rgba(255,200,50,0.95)');
+        } else {
+          // visual de 'errou' quando o alvo estiver fora do alcance ou bloqueando
+          const missX = attacker.x + (attacker.facing === 1 ? SPECIAL_RANGE * 0.6 : -SPECIAL_RANGE * 0.6);
+          const missY = attacker.y + 40;
+          spawnHitEffect(missX, missY, 'rgba(180,180,180,0.75)');
+          // pequeno recuo/feedback no atacante para não ficar imune
+          const atkF = attacker.facing || (attacker === p1 ? 1 : -1);
+          attacker.x -= atkF * 8;
+        }
+      }
+
+      function uppercut(attacker, target) {
+        try { setAnim(attacker, 'uppercut'); } catch (e) {}
+        const scaledDamage = Math.floor(15 * (attacker.strengthMultiplier || 1));
+        if (Math.abs(attacker.x - target.x) < 60 && Math.abs(attacker.y - target.y) < 50) {
+          if (target.blocking) return; // Bloqueando = sem dano
+          if (target.parrying) {
+            // Parry successful: attacker gets small damage and knockback
+            applyDamage(attacker, Math.floor(scaledDamage / 2));
+            const atkF3 = attacker.facing || (attacker === p1 ? 1 : -1);
+            attacker.x += -atkF3 * 20;
+            const attackerEl = attacker === p1 ? player1 : player2;
+            attackerEl.classList.add('damage-effect');
+            setTimeout(() => attackerEl.classList.remove('damage-effect'), 300);
+            return;
+          }
+          
+          // Aplicar efeito visual de dano
+          const targetElement = attacker === p1 ? player2 : player1;
+          targetElement.classList.add('damage-effect');
+          setTimeout(() => targetElement.classList.remove('damage-effect'), 300);
+          
+          // Aplicar dano
+          applyDamage(target, scaledDamage);
+          // grant special for uppercut hit
+          attacker.special = Math.max(0, Math.min(SPECIAL_MAX, (attacker.special || 0) + SPECIAL_GAIN_HIT));
+          
+          // Lançar o alvo para cima
+          target.y += UPPERCUT_FORCE;
+          target.vy = UPPERCUT_FORCE;
+          target.jumping = true;
+          
+          // Knockback horizontal
+          const atkF4 = attacker.facing || (attacker === p1 ? 1 : -1);
+          target.x += atkF4 * 40;
+        }
+      }
+
+      function tryParry(player, who) {
+        const now = Date.now();
+        if (now - player.lastParry < PARRY_COOLDOWN) return; // em cooldown
+        if ((who === 1 && stamina1 < PARRY_STAMINA_COST) || (who === 2 && stamina2 < PARRY_STAMINA_COST)) return; // sem stamina
+
+        // Ativar parry por uma janela curta
+        player.parrying = true;
+        player.lastParry = now;
+        if (who === 1) {
+          stamina1 -= PARRY_STAMINA_COST;
+          player1.style.border = '3px solid lightgreen';
+        } else {
+          stamina2 -= PARRY_STAMINA_COST;
+          player2.style.border = '3px solid lightgreen';
+        }
+
+        setTimeout(() => {
+          player.parrying = false;
+          if (who === 1) player1.style.border = '';
+          else player2.style.border = '';
+        }, PARRY_WINDOW);
+      }
+
+      function spawnHitEffect(x, y, color) {
+        const e = document.createElement('div');
+        e.className = 'hit-effect';
+        e.style.left = x + 'px';
+        e.style.bottom = y + 'px';
+        e.style.background = color;
+        game.appendChild(e);
+        setTimeout(() => e.remove(), 450);
+      }
+
+      // --- Animation helpers (frame-based) ---
+      function setAnim(playerObj, animName) {
+        if (!playerObj) return;
+        if (playerObj.currentAnim === animName) return;
+        playerObj.currentAnim = animName;
+        playerObj.animFrame = 0;
+        playerObj.animLastTick = 0;
+      }
+
+      function advanceAnim(playerObj, element) {
+        try {
+          if (!playerObj || !element) return;
+          // ensure background sizing for sprites
+          element.style.backgroundSize = 'contain';
+          element.style.backgroundRepeat = 'no-repeat';
+          element.style.backgroundPosition = 'center bottom';
+
+          // flip horizontally based on facing
+          element.style.transform = `scaleX(${playerObj.facing === -1 ? -1 : 1})`;
+
+          const framesSet = playerObj.frames || null;
+          const anim = playerObj.currentAnim || 'idle';
+          const frames = framesSet && framesSet[anim] ? framesSet[anim] : [];
+          if (!frames || frames.length === 0) {
+            // no frames for this anim: clear background-image and keep backgroundColor
+            element.style.backgroundImage = '';
+            return;
+          }
+          if (frames && frames.length > 0) {
+            // If the current frame image is not yet cached (still loading), keep the
+            // fighter's color as background so the character doesn't disappear.
+            const url = frames[playerObj.animFrame] || frames[0];
+            if (!FRAME_CACHE.has(url)) {
+              element.style.backgroundColor = playerObj.color || element.style.backgroundColor || '';
+            } else {
+              element.style.backgroundColor = 'transparent';
+            }
+          }
+          const now = Date.now();
+          const interval = playerObj.animInterval || 120;
+          if (!playerObj.animLastTick) playerObj.animLastTick = now;
+          if (!Number.isInteger(playerObj.animFrame)) playerObj.animFrame = 0;
+          if (now - playerObj.animLastTick >= interval) {
+            playerObj.animFrame = (playerObj.animFrame + 1) % frames.length;
+            playerObj.animLastTick = now;
+          }
+          const url = frames[playerObj.animFrame];
+          if (url) element.style.backgroundImage = `url(${url})`;
+        } catch (err) {
+          // silent fail if frames not configured yet
+        }
+      }
+
+      function gameLoop() {
+        // Atualizar física dos jogadores
+        [p1, p2].forEach(player => {
+          if (player.jumping) {
+            player.vy -= GRAVITY;
+            player.y += player.vy;
+            if (player.y <= GROUND_Y) {
+              player.y = GROUND_Y;
+              player.jumping = false;
+              player.vy = 0;
+            }
+          }
+        });
+
+        // Atualizar projéteis (usando loop reverso para evitar problemas de índice)
+        for (let i = bullets.length - 1; i >= 0; i--) {
+          const bullet = bullets[i];
+          // move bullet by its speed
+          bullet.x += bullet.direction * bullet.speed;
+          // update DOM position with transform for smoother performance
+          bullet.element.style.left = bullet.x + 'px';
+          bullet.element.style.bottom = bullet.y + 'px';
+          // slight rotation for motion feel
+          bullet.element.style.transform = `translate(0,0) rotate(${bullet.direction === 1 ? 5 : -5}deg)`;
+          bullet.element.style.opacity = bullet.reflected ? '0.95' : '1';
+          
+          const target = bullet.owner === 1 ? p2 : p1;
+          const targetElement = bullet.owner === 1 ? player2 : player1;
+          const owner = bullet.owner === 1 ? p1 : p2; // quem atirou originalmente
+          const ownerElement = bullet.owner === 1 ? player1 : player2;
+          
+          // rectangle-based collision (AABB)
+          const playerRect = { x: target.x, y: target.y, w: 50, h: 100 };
+          const bulletRect = { x: bullet.x, y: bullet.y, w: bullet.w, h: bullet.h };
+
+          function rectsOverlap(a, b) {
+            return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+          }
+
+          if (rectsOverlap(bulletRect, playerRect)) {
+            // If the player is currently parrying, reflect the bullet back to its owner
+            if (target.parrying) {
+              if (!bullet.reflected) {
+                bullet.reflected = true;
+                // swap owner id (1 <-> 2) so subsequent collision will damage the original shooter
+                bullet.owner = bullet.owner === 1 ? 2 : 1;
+                // reverse direction so it flies back
+                bullet.direction *= -1;
+                bullet.speed = Math.min(10, bullet.speed + 2);
+                // visual change for reflected bullet
+                bullet.element.style.boxShadow = '0 0 12px rgba(255,255,255,0.9)';
+                bullet.element.style.border = '2px solid white';
+                // move bullet slightly so it doesn't immediately re-collide
+                bullet.x += bullet.direction * 12;
+                // spawn hit effect at collision point
+                spawnHitEffect(bullet.x, bullet.y, 'rgba(200,255,200,0.9)');
+              }
+              // leave bullet in play after reflection
+            } else {
+              // Normal hit: apply damage to the target (only if not blocking)
+              if (!target.blocking) {
+                applyDamage(target, bullet.damage || 5);
+                // grant special to the shooter on hit
+                owner.special = Math.max(0, Math.min(SPECIAL_MAX, (owner.special || 0) + SPECIAL_GAIN_HIT));
+                // visual feedback
+                targetElement.classList.add('damage-effect');
+                setTimeout(() => {
+                  targetElement.classList.remove('damage-effect');
+                }, 300);
+                spawnHitEffect(bullet.x, bullet.y, 'rgba(255,200,0,0.9)');
+                checkWin();
+              }
+              // remove bullet after hitting
+              bullet.element.remove();
+              bullets.splice(i, 1);
+              update();
+            }
+          } else if (bullet.x < 0 || bullet.x > GAME_WIDTH) {
+            bullet.element.remove();
+            bullets.splice(i, 1);
+          }
+        }
+
+        // STAMINA UPDATE
+        if (p1.blocking) stamina1 -= STAMINA_DECREASE; else stamina1 += STAMINA_RECOVERY;
+        if (p2.blocking) stamina2 -= STAMINA_DECREASE; else stamina2 += STAMINA_RECOVERY;
+        stamina1 = Math.max(0, Math.min(MAX_STAMINA, stamina1));
+        stamina2 = Math.max(0, Math.min(MAX_STAMINA, stamina2));
+        staminaBar1.style.width = stamina1 + '%';
+        staminaBar2.style.width = stamina2 + '%';
+        if (stamina1 <= 0) p1.blocking = false;
+        if (stamina2 <= 0) p2.blocking = false;
+
+        shield1.style.display = p1.blocking ? 'block' : 'none';
+        shield2.style.display = p2.blocking ? 'block' : 'none';
+
+        update();
+        updateCooldowns();
+        requestAnimationFrame(gameLoop);
+      }
+
+      gameLoop();
+    }
+  </script>
+</body>
+</html>
